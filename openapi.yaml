@@ -1234,6 +1234,14 @@ paths:
                   in: query
                   schema:
                     type: string
+                - name: isQueue
+                  in: query
+                  schema:
+                    type: string
+                - name: address
+                  in: query
+                  schema:
+                    type: string
             responses:
                 "200":
                     description: OK
@@ -2478,6 +2486,11 @@ components:
                     type: string
                 count:
                     type: string
+                myCount:
+                    type: string
+                todayAmount:
+                    type: number
+                    format: double
                 list:
                     type: array
                     items:
@@ -2486,6 +2499,8 @@ components:
             type: object
             properties:
                 id:
+                    type: string
+                address:
                     type: string
                 stake:
                     type: number

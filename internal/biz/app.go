@@ -490,6 +490,9 @@ type UserRepo interface {
 	GetStakeGetRecordsByUserID(ctx context.Context, userID int64, b *Pagination) ([]*StakeGetRecord, error)
 	GetStakeGitByUserID(ctx context.Context, userID int64) (*StakeGit, error)
 	GetStakeGitRecordsByUserID(ctx context.Context, userID uint64, b *Pagination) ([]*StakeGitRecord, error)
+	GetStakeGitRecordsByUserIDQueue(ctx context.Context, userID uint64, b *Pagination) ([]*StakeGitRecord, error)
+	GetStakeGitRecordsByUserIDQueueCount(ctx context.Context, userId uint64) (int64, error)
+	GetStakeGitRecordsByUserIDQueueToday(ctx context.Context) (float64, error)
 	GetStakeGitRecordsByID(ctx context.Context, id, userId uint64) (*StakeGitRecord, error)
 	GetWithdrawTodayRecordsByUserID(ctx context.Context, userID uint64, coinType string) ([]*Withdraw, error)
 	GetExchangeTodayRecordsByUserID(ctx context.Context, userID uint64) ([]*Exchange, error)
@@ -556,7 +559,7 @@ type UserRepo interface {
 	SetStakeGetSub(ctx context.Context, userId uint64, git, amount float64) error
 	SetStakeGetPlaySub(ctx context.Context, userId uint64, amount float64) error
 	SetStakeGetPlay(ctx context.Context, userId uint64, git, amount float64) error
-	SetStakeGit(ctx context.Context, userId uint64, amount, amountTwo float64, day uint64) error
+	SetStakeGit(ctx context.Context, userId uint64, amount, amountTwo, usdtAmountOrigin float64, day uint64) error
 	SetUnStakeGit(ctx context.Context, id, userId uint64, amount float64) error
 	Exchange(ctx context.Context, userId uint64, git, giw float64) error
 	Transfer(ctx context.Context, userId, toUserId uint64, amountUsdt float64) error
@@ -1763,9 +1766,17 @@ func (ac *AppUsecase) UserLand(ctx context.Context, address string, req *pb.User
 func (ac *AppUsecase) UserStakeGitStakeList(ctx context.Context, address string, req *pb.UserStakeGitStakeListRequest) (*pb.UserStakeGitStakeListReply, error) {
 	res := make([]*pb.UserStakeGitStakeListReply_List, 0)
 	var (
-		user *User
-		err  error
+		user        *User
+		count       int64
+		myCount     int64
+		configs     []*Config
+		queueAmount float64
+		todayAmount float64
+		err         error
 	)
+	if 10 < len(req.Address) {
+		address = req.Address
+	}
 	user, err = ac.userRepo.GetUserByAddress(ctx, address) // 查询用户
 	if nil != err || nil == user {
 		return &pb.UserStakeGitStakeListReply{
@@ -1773,30 +1784,123 @@ func (ac *AppUsecase) UserStakeGitStakeList(ctx context.Context, address string,
 		}, nil
 	}
 
-	var (
-		stakeGitRecord []*StakeGitRecord
-	)
-	stakeGitRecord, err = ac.userRepo.GetStakeGitRecordsByUserID(ctx, user.ID, nil)
-	if nil != err {
-		return &pb.UserStakeGitStakeListReply{
-			Status: "粮仓错误查询",
-		}, nil
-	}
+	if 1 == req.IsQueue {
+		// 配置
+		configs, err = ac.userRepo.GetConfigByKeys(ctx,
+			"withdraw_amount_min",
+			"withdraw_amount_max",
+		)
+		if nil != err || nil == configs {
+			return &pb.UserStakeGitStakeListReply{
+				Status: "配置错误",
+			}, nil
+		}
+		for _, vConfig := range configs {
+			if "queue_amount" == vConfig.KeyName {
+				queueAmount, _ = strconv.ParseFloat(vConfig.Value, 10)
+			}
+		}
 
-	for _, v := range stakeGitRecord {
-		res = append(res, &pb.UserStakeGitStakeListReply_List{
-			Id:        v.ID,
-			Stake:     v.Amount,
-			CreatedAt: v.CreatedAt.Add(8 * time.Hour).Format("2006-01-02 15:04:05"),
-			Day:       v.Day,
-			Reward:    v.AmountTwo,
+		var (
+			stakeGitRecord []*StakeGitRecord
+			userId         uint64
+		)
+		if 10 < len(req.Address) {
+			userId = user.ID
+		}
+
+		todayAmount, err = ac.userRepo.GetStakeGitRecordsByUserIDQueueToday(ctx)
+		if nil != err {
+			return &pb.UserStakeGitStakeListReply{
+				Status: "粮仓错误查询",
+			}, nil
+		}
+
+		if todayAmount < queueAmount {
+			queueAmount = queueAmount - todayAmount
+		}
+
+		myCount, err = ac.userRepo.GetStakeGitRecordsByUserIDQueueCount(ctx, user.ID)
+		if nil != err {
+			return &pb.UserStakeGitStakeListReply{
+				Status: "粮仓错误查询",
+			}, nil
+		}
+
+		count, err = ac.userRepo.GetStakeGitRecordsByUserIDQueueCount(ctx, userId)
+		if nil != err {
+			return &pb.UserStakeGitStakeListReply{
+				Status: "粮仓错误查询",
+			}, nil
+		}
+
+		stakeGitRecord, err = ac.userRepo.GetStakeGitRecordsByUserIDQueue(ctx, userId, &Pagination{
+			PageNum:  int(req.Page),
+			PageSize: 20,
 		})
+		if nil != err {
+			return &pb.UserStakeGitStakeListReply{
+				Status: "粮仓错误查询",
+			}, nil
+		}
+
+		userIds := make([]uint64, 0)
+		for _, v := range stakeGitRecord {
+			userIds = append(userIds, v.UserId)
+		}
+		usersMap := make(map[uint64]*User)
+		if 0 < len(userIds) {
+			usersMap, err = ac.userRepo.GetUserByUserIds(ctx, userIds)
+			if nil != err {
+				return &pb.UserStakeGitStakeListReply{
+					Status: "粮仓错误查询",
+				}, nil
+			}
+		}
+
+		for _, v := range stakeGitRecord {
+			tmpAddress := ""
+			if _, ok := usersMap[v.UserId]; ok {
+				tmpAddress = usersMap[v.UserId].Address
+			}
+
+			res = append(res, &pb.UserStakeGitStakeListReply_List{
+				Id:        v.ID,
+				Stake:     v.Amount,
+				CreatedAt: v.CreatedAt.Add(8 * time.Hour).Format("2006-01-02 15:04:05"),
+				Day:       v.Day,
+				Reward:    v.AmountTwo,
+				Address:   tmpAddress,
+			})
+		}
+	} else {
+		var (
+			stakeGitRecord []*StakeGitRecord
+		)
+		stakeGitRecord, err = ac.userRepo.GetStakeGitRecordsByUserID(ctx, user.ID, nil)
+		if nil != err {
+			return &pb.UserStakeGitStakeListReply{
+				Status: "粮仓错误查询",
+			}, nil
+		}
+
+		for _, v := range stakeGitRecord {
+			res = append(res, &pb.UserStakeGitStakeListReply_List{
+				Id:        v.ID,
+				Stake:     v.Amount,
+				CreatedAt: v.CreatedAt.Add(8 * time.Hour).Format("2006-01-02 15:04:05"),
+				Day:       v.Day,
+				Reward:    v.AmountTwo,
+			})
+		}
 	}
 
 	return &pb.UserStakeGitStakeListReply{
-		Status: "ok",
-		Count:  0,
-		List:   res,
+		Status:      "ok",
+		Count:       uint64(count),
+		MyCount:     uint64(myCount),
+		TodayAmount: queueAmount,
+		List:        res,
 	}, err
 }
 
@@ -6324,6 +6428,7 @@ func (ac *AppUsecase) StakeGit(ctx context.Context, address string, req *pb.Stak
 		}
 
 		usdtAmount := req.SendBody.Amount * tmp0 / tmp1
+		usdtAmountOrigin := usdtAmount
 		usdtAmount = usdtAmount * 1.5 / 30
 		if 0.00000001 >= usdtAmount {
 			return &pb.StakeGitReply{
@@ -6349,7 +6454,7 @@ func (ac *AppUsecase) StakeGit(ctx context.Context, address string, req *pb.Stak
 		//}
 
 		if err = ac.tx.ExecTx(ctx, func(ctx context.Context) error { // 事务
-			err = ac.userRepo.SetStakeGit(ctx, user.ID, req.SendBody.Amount, usdtAmount, dayLimit)
+			err = ac.userRepo.SetStakeGit(ctx, user.ID, req.SendBody.Amount, usdtAmount, usdtAmountOrigin, dayLimit)
 			if nil != err {
 				return err
 			}
@@ -7695,7 +7800,7 @@ func (ac *AppUsecase) StakeGetPlay(ctx context.Context, address string, req *pb.
 		}
 
 		return &pb.StakeGetPlayReply{Status: "ok", PlayStatus: 1, Amount: tmpGit}, nil
-	} else { // 输：下注金额加入池子
+	} else {                                                         // 输：下注金额加入池子
 		if err = ac.tx.ExecTx(ctx, func(ctx context.Context) error { // 事务
 			err = ac.userRepo.SetStakeGetPlaySub(ctx, user.ID, float64(req.SendBody.Amount))
 			if nil != err {
