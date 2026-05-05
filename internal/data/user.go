@@ -2448,7 +2448,7 @@ func (u *UserRepo) GetStakeGitRecordsByUserIDQueueToday(ctx context.Context) (fl
 	now := time.Now()
 	todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 
-	if err := u.data.DB(ctx).Table("stake_git_record_ispay_queue").Where("stake_type=?", 2).Where("created_at>=?", todayStart).Select("SUM(amount_three)").Scan(&totalStakeRate).Error; err != nil {
+	if err := u.data.DB(ctx).Table("stake_git_record_ispay_queue").Where("stake_type=?", 2).Where("created_at>=?", todayStart).Select("IFNULL(SUM(amount_three), 0)").Scan(&totalStakeRate).Error; err != nil {
 		return 0, errors.New(500, "STAKE_RATE_SUM_ERROR", err.Error())
 	}
 
