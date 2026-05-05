@@ -1787,8 +1787,7 @@ func (ac *AppUsecase) UserStakeGitStakeList(ctx context.Context, address string,
 	if 1 == req.IsQueue {
 		// 配置
 		configs, err = ac.userRepo.GetConfigByKeys(ctx,
-			"withdraw_amount_min",
-			"withdraw_amount_max",
+			"queue_amount",
 		)
 		if nil != err || nil == configs {
 			return &pb.UserStakeGitStakeListReply{
@@ -7800,7 +7799,7 @@ func (ac *AppUsecase) StakeGetPlay(ctx context.Context, address string, req *pb.
 		}
 
 		return &pb.StakeGetPlayReply{Status: "ok", PlayStatus: 1, Amount: tmpGit}, nil
-	} else {                                                         // 输：下注金额加入池子
+	} else { // 输：下注金额加入池子
 		if err = ac.tx.ExecTx(ctx, func(ctx context.Context) error { // 事务
 			err = ac.userRepo.SetStakeGetPlaySub(ctx, user.ID, float64(req.SendBody.Amount))
 			if nil != err {
