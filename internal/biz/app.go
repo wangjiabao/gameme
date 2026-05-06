@@ -4346,20 +4346,22 @@ func (ac *AppUsecase) LandPlayTwo(ctx context.Context, address string, req *pb.L
 					ispayL = tmpReward * tmp1 / tmp0
 				}
 
-				// 奖励
-				err = ac.userRepo.PlantPlatTwoTwoL(ctx, landUserUse.ID, tmpUserId, landUserUse.UserId, tmpNum, tmpReward, ispayL)
-				if nil != err {
-					return err
-				}
+				if 0 < tmpReward {
+					// 奖励
+					err = ac.userRepo.PlantPlatTwoTwoL(ctx, landUserUse.ID, tmpUserId, landUserUse.UserId, tmpNum, tmpReward, ispayL)
+					if nil != err {
+						return err
+					}
 
-				err = ac.userRepo.CreateNotice(
-					ctx,
-					tmpUserId,
-					"您收获了"+fmt.Sprintf("%.2f", tmpReward)+"USDT 和"+fmt.Sprintf("%.2f", ispayL)+" ISPAY",
-					"You've harvest "+fmt.Sprintf("%.2f", tmpReward)+" USDT AND "+fmt.Sprintf("%.2f", ispayL)+" ISPAY",
-				)
-				if nil != err {
-					return err
+					err = ac.userRepo.CreateNotice(
+						ctx,
+						tmpUserId,
+						"您收获了"+fmt.Sprintf("%.2f", tmpReward)+"USDT 和"+fmt.Sprintf("%.2f", ispayL)+" ISPAY",
+						"You've harvest "+fmt.Sprintf("%.2f", tmpReward)+" USDT AND "+fmt.Sprintf("%.2f", ispayL)+" ISPAY",
+					)
+					if nil != err {
+						return err
+					}
 				}
 
 				break
@@ -5251,20 +5253,23 @@ func (ac *AppUsecase) LandPlaySix(ctx context.Context, address string, req *pb.L
 				} else {
 					ispayL = tmpReward * tmp1 / tmp0
 				}
-				// 奖励
-				err = ac.userRepo.PlantPlatTwoTwoL(ctx, landUserUse.ID, tmpUserId, landUserUse.UserId, tmpNum, tmpReward, ispayL)
-				if nil != err {
-					return err
-				}
 
-				err = ac.userRepo.CreateNotice(
-					ctx,
-					tmpUserId,
-					"您收获了"+fmt.Sprintf("%.2f", tmpReward)+"USDT 和"+fmt.Sprintf("%.2f", ispayL)+" ISPAY",
-					"You've harvest "+fmt.Sprintf("%.2f", tmpReward)+" USDT AND "+fmt.Sprintf("%.2f", ispayL)+" ISPAY",
-				)
-				if nil != err {
-					return err
+				if 0 < tmpReward {
+					// 奖励
+					err = ac.userRepo.PlantPlatTwoTwoL(ctx, landUserUse.ID, tmpUserId, landUserUse.UserId, tmpNum, tmpReward, ispayL)
+					if nil != err {
+						return err
+					}
+
+					err = ac.userRepo.CreateNotice(
+						ctx,
+						tmpUserId,
+						"您收获了"+fmt.Sprintf("%.2f", tmpReward)+"USDT 和"+fmt.Sprintf("%.2f", ispayL)+" ISPAY",
+						"You've harvest "+fmt.Sprintf("%.2f", tmpReward)+" USDT AND "+fmt.Sprintf("%.2f", ispayL)+" ISPAY",
+					)
+					if nil != err {
+						return err
+					}
 				}
 
 				break
@@ -7799,7 +7804,7 @@ func (ac *AppUsecase) StakeGetPlay(ctx context.Context, address string, req *pb.
 		}
 
 		return &pb.StakeGetPlayReply{Status: "ok", PlayStatus: 1, Amount: tmpGit}, nil
-	} else { // 输：下注金额加入池子
+	} else {                                                         // 输：下注金额加入池子
 		if err = ac.tx.ExecTx(ctx, func(ctx context.Context) error { // 事务
 			err = ac.userRepo.SetStakeGetPlaySub(ctx, user.ID, float64(req.SendBody.Amount))
 			if nil != err {
