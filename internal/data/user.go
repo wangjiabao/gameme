@@ -2445,10 +2445,28 @@ func (u *UserRepo) GetStakeGitByUserID(ctx context.Context, userID int64) (*biz.
 
 func (u *UserRepo) GetStakeGitRecordsByUserIDQueueToday(ctx context.Context) (float64, error) {
 	var totalStakeRate float64
-	now := time.Now()
-	todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 
-	if err := u.data.DB(ctx).Table("stake_git_record_ispay_queue").Where("stake_type=?", 2).Where("created_at>=?", todayStart).Select("IFNULL(SUM(amount_three), 0)").Scan(&totalStakeRate).Error; err != nil {
+	now := time.Now()
+
+	// 北京时间今天00点
+	todayStart := time.Date(
+		now.Year(),
+		now.Month(),
+		now.Day(),
+		0, 0, 0, 0,
+		now.Location(),
+	)
+
+	// 转 UTC（减8小时）
+	todayStart = todayStart.Add(-8 * time.Hour)
+
+	if err := u.data.DB(ctx).
+		Table("stake_git_record_ispay_queue").
+		Where("stake_type = ?", 2).
+		Where("created_at >= ?", todayStart).
+		Select("IFNULL(SUM(amount_three), 0)").
+		Scan(&totalStakeRate).Error; err != nil {
+
 		return 0, errors.New(500, "STAKE_RATE_SUM_ERROR", err.Error())
 	}
 
