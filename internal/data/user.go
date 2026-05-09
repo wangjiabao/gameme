@@ -2,6 +2,7 @@ package data
 
 import (
 	"context"
+	"fmt"
 	"game/internal/biz"
 	"github.com/go-kratos/kratos/v2/errors"
 	"github.com/go-kratos/kratos/v2/log"
@@ -2457,13 +2458,11 @@ func (u *UserRepo) GetStakeGitRecordsByUserIDQueueToday(ctx context.Context) (fl
 		now.Location(),
 	)
 
-	// 转 UTC（减8小时）
-	todayStart = todayStart.Add(-8 * time.Hour)
-
+	fmt.Println(todayStart)
 	if err := u.data.DB(ctx).
 		Table("stake_git_record_ispay_queue").
 		Where("stake_type = ?", 2).
-		Where("created_at >= ?", todayStart).
+		Where("updated_at >= ?", todayStart).
 		Select("IFNULL(SUM(amount_three), 0)").
 		Scan(&totalStakeRate).Error; err != nil {
 
