@@ -2,7 +2,6 @@ package data
 
 import (
 	"context"
-	"fmt"
 	"game/internal/biz"
 	"github.com/go-kratos/kratos/v2/errors"
 	"github.com/go-kratos/kratos/v2/log"
@@ -2458,7 +2457,7 @@ func (u *UserRepo) GetStakeGitRecordsByUserIDQueueToday(ctx context.Context) (fl
 		now.Location(),
 	)
 
-	fmt.Println(todayStart)
+	//fmt.Println(todayStart)
 	if err := u.data.DB(ctx).
 		Table("stake_git_record_ispay_queue").
 		Where("stake_type = ?", 2).
